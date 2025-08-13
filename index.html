@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>سِجال — بروتوتايب</title>
+<style>
+  :root { --bg:#0f172a; --card:#111827; --muted:#9ca3af; --accent:#eab308; }
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#0b1022,#0f172a);}
+  .wrap{max-width:900px;margin:24px auto;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;color:#fff;margin-bottom:12px}
+  header h1{font-size:22px;margin:0}
+  .scoreboard{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+  .team{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:12px;color:#fff}
+  .team.active{outline:2px solid var(--accent)}
+  .team h3{margin:0 0 6px;font-size:16px}
+  .pts{font-size:28px;font-weight:700}
+  .center{color:#fff;text-align:center}
+  .roundPot{background:#1f2937;display:inline-block;padding:6px 12px;border-radius:999px;font-weight:600}
+  .card{background:#0b1220;border:1px solid #1f2937;border-radius:16px;overflow:hidden;color:#fff}
+  .qhead{padding:14px 16px;border-bottom:1px dashed #253049;display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .qtext{font-size:18px;font-weight:700}
+  .meta{color:var(--muted);font-size:13px}
+  .answers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px}
+  .ans{background:#0f1628;border:1px solid #1f2a44;border-radius:12px;min-height:70px;display:flex;align-items:center;justify-content:center;font-weight:700;position:relative;cursor:pointer;transition:transform .08s ease}
+  .ans:hover{transform:translateY(-1px)}
+  .ans.revealed{background:#0d1b2a;border-color:#2b4a7a}
+  .ans .label{opacity:.9}
+  .ans .points{position:absolute;bottom:6px;left:10px;font-size:12px;color:var(--accent)}
+  .panel{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-top:1px dashed #253049;background:#0b1220}
+  button{background:#1f2937;color:#fff;border:1px solid #2b364e;border-radius:10px;padding:10px 12px;font-weight:600;cursor:pointer}
+  button.primary{background:#eab308;color:#111827;border-color:#d6a106}
+  button.danger{background:#ef4444;border-color:#b91c1c}
+  .pill{background:#1f2937;color:#fff;border:1px solid #334155;border-radius:999px;padding:6px 10px;font-size:12px}
+  .strikes{display:flex;gap:6px;align-items:center}
+  .strike{width:16px;height:16px;border-radius:4px;background:#1f2937;border:1px solid #334155}
+  .strike.on{background:#ef4444;border-color:#b91c1c}
+  footer{margin-top:16px;color:#94a3b8;font-size:12px;text-align:center}
+  .help{color:#9ca3af}
+  @media (max-width:720px){ .answers{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>سِجال — بروتوتايب اللعب السريع</h1>
+      <div class="roundPot">رصيد الجولة: <span id="roundPot">0</span></div>
+    </header>
+
+    <section class="scoreboard">
+      <div id="teamA" class="team active">
+        <h3>الفريق A</h3>
+        <div>نقاط</div>
+        <div class="pts" id="scoreA">0</div>
+      </div>
+      <div class="center">
+        <div class="help">الفريق النشط باللون الذهبي. 5 أخطاء ثم انتقال للخطف.</div>
+        <div class="strikes" id="strikes"></div>
+      </div>
+      <div id="teamB" class="team">
+        <h3>الفريق B</h3>
+        <div>نقاط</div>
+        <div class="pts" id="scoreB">0</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="qhead">
+        <div>
+          <div class="meta">سؤال <span id="qIndex">1</span> / <span id="qTotal">-</span></div>
+          <div class="qtext" id="qText">—</div>
+        </div>
+        <div class="meta">إجابات مضمّنة: 6 — أخطاء قبل الخطف: 5</div>
+      </div>
+      <div class="answers" id="answers"></div>
+      <div class="panel">
+        <button id="revealAll">كشف الكل</button>
+        <button id="nextQ" class="primary">السؤال التالي</button>
+        <button id="wrong" class="danger">خطأ</button>
+        <span class="pill">دور: <b id="turnLabel">A</b></span>
+        <span class="pill">وضع: <b id="phaseLabel">أساسي</b></span>
+        <span class="pill">إجابات مكشوفة: <b id="revealedCount">0</b>/6</span>
+      </div>
+    </section>
+
+    <footer>© سِجال — نموذج أولي. يمكن استبدال بنك الأسئلة عبر JSON داخل الملف.</footer>
+  </div>
+
+<script>
+const QUESTIONS = [
+  {
+    text: "اذكر شيئًا يقدّمه المضيف للضيوف أول ما يدخلون",
+    answers: [
+      { text:"القهوة/الشاي", points:35 },
+      { text:"التمر/حلويات", points:20 },
+      { text:"الماء", points:15 },
+      { text:"الترحيب/السلام", points:12 },
+      { text:"العصير", points:10 },
+      { text:"الفواكه/مقبلات", points:8 },
+    ]
+  },
+  {
+    text: "شيء لا تستغني عنه في سفر طويل",
+    answers: [
+      { text:"الجوال/شاحن", points:30 },
+      { text:"الماء", points:18 },
+      { text:"النقود/بطاقة", points:16 },
+      { text:"سماعات", points:14 },
+      { text:"وجبات خفيفة", points:12 },
+      { text:"الوسادة/بطانية", points:10 },
+    ]
+  },
+  {
+    text: "مكان ترتبط رائحته بطفولتك",
+    answers: [
+      { text:"بيت الجدّة", points:28 },
+      { text:"المدرسة", points:22 },
+      { text:"الملعب", points:18 },
+      { text:"المسجد", points:14 },
+      { text:"البقالة", points:10 },
+      { text:"المطبخ", points:8 },
+    ]
+  }
+];
+
+let state = {
+  qi: 0,
+  turn: "A",
+  phase: "base",
+  strikes: 0,
+  revealed: new Set(),
+  pot: 0,
+  score: { A:0, B:0 },
+};
+
+const els = {
+  qIndex: document.getElementById('qIndex'),
+  qTotal: document.getElementById('qTotal'),
+  qText: document.getElementById('qText'),
+  answers: document.getElementById('answers'),
+  scoreA: document.getElementById('scoreA'),
+  scoreB: document.getElementById('scoreB'),
+  roundPot: document.getElementById('roundPot'),
+  strikes: document.getElementById('strikes'),
+  turnLabel: document.getElementById('turnLabel'),
+  phaseLabel: document.getElementById('phaseLabel'),
+  revealedCount: document.getElementById('revealedCount'),
+  teamA: document.getElementById('teamA'),
+  teamB: document.getElementById('teamB'),
+  btnNext: document.getElementById('nextQ'),
+  btnWrong: document.getElementById('wrong'),
+  btnRevealAll: document.getElementById('revealAll'),
+};
+
+function init(){
+  els.qTotal.textContent = QUESTIONS.length;
+  loadQuestion(0);
+  els.btnWrong.onclick = onWrong;
+  els.btnNext.onclick = nextQuestion;
+  els.btnRevealAll.onclick = revealAll;
+  updateHud();
+}
+
+function loadQuestion(i){
+  state.qi = i;
+  state.turn = "A";
+  state.phase = "base";
+  state.strikes = 0;
+  state.revealed = new Set();
+  state.pot = 0;
+  els.qIndex.textContent = i+1;
+  els.qText.textContent = QUESTIONS[i].text;
+  els.answers.innerHTML = "";
+  QUESTIONS[i].answers.forEach((a,idx)=>{
+    const div = document.createElement('div');
+    div.className = "ans";
+    div.dataset.idx = idx;
+    div.innerHTML = `<span class="label">إظهار الإجابة</span><span class="points"></span>`;
+    div.addEventListener('click', ()=>reveal(idx));
+    els.answers.appendChild(div);
+  });
+  renderStrikes();
+  highlightTurn();
+  updateHud();
+}
+
+function reveal(idx){
+  if(state.revealed.has(idx)) return;
+  state.revealed.add(idx);
+  const a = QUESTIONS[state.qi].answers[idx];
+  const div = els.answers.querySelector(`.ans[data-idx="${idx}"]`);
+  div.classList.add('revealed');
+  div.innerHTML = `<span class="label">${idx+1}) ${a.text}</span><span class="points">+${a.points}</span>`;
+  state.pot += a.points;
+  updateHud();
+  if(state.phase === "base" && state.revealed.size === QUESTIONS[state.qi].answers.length){
+    award(state.turn, state.pot);
+    lockQuestion();
+  }
+}
+
+function revealAll(){
+  QUESTIONS[state.qi].answers.forEach((_,i)=>reveal(i));
+}
+
+function onWrong(){
+  state.strikes++;
+  renderStrikes();
+  if(state.phase === "base"){
+    if(state.strikes >= 5){
+      state.phase = "steal";
+      state.turn = otherTeam(state.turn);
+      state.strikes = 0;
+      renderStrikes();
+      highlightTurn();
+      updateHud();
+    }
+  }else{
+    const original = otherTeam(state.turn);
+    award(original, state.pot);
+    lockQuestion();
+  }
+}
+
+function award(team, pts){
+  state.score[team] += pts;
+  state.pot = 0;
+  updateHud();
+}
+
+function nextQuestion(){
+  if(state.qi < QUESTIONS.length-1){
+    loadQuestion(state.qi+1);
+  }else{
+    alert(winnerText());
+  }
+}
+
+function winnerText(){
+  const a = state.score.A, b = state.score.B;
+  if(a>b) return `انتهت اللعبة — فاز الفريق A (${a} : ${b})`;
+  if(b>a) return `انتهت اللعبة — فاز الفريق B (${b} : ${a})`;
+  return `تعادل (${a} : ${b})`;
+}
+
+function lockQuestion(){
+  els.answers.querySelectorAll('.ans').forEach(el=>{
+    el.style.pointerEvents = 'none';
+  });
+}
+
+function otherTeam(t){ return t === "A" ? "B" : "A"; }
+
+function highlightTurn(){
+  els.teamA.classList.toggle('active', state.turn === "A");
+  els.teamB.classList.toggle('active', state.turn === "B");
+  els.turnLabel.textContent = state.turn;
+}
+
+function renderStrikes(){
+  els.strikes.innerHTML = "";
+  const limit = (state.phase === "base") ? 5 : 1;
+  for(let i=0;i<limit;i++){
+    const s = document.createElement('div');
+    s.className = 'strike' + (i < state.strikes ? ' on' : '');
+    els.strikes.appendChild(s);
+  }
+}
+
+function updateHud(){
+  els.scoreA.textContent = state.score.A;
+  els.scoreB.textContent = state.score.B;
+  els.roundPot.textContent = state.pot;
+  els.phaseLabel.textContent = (state.phase === "base") ? "أساسي" : "خطف";
+  els.revealedCount.textContent = state.revealed.size;
+  highlightTurn();
+}
+
+init();
+</script>
+</body>
+</html>
